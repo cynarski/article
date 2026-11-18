@@ -151,41 +151,33 @@ def monte_carlo_bsadf_reference(prices: pd.DataFrame, min_window=120, endpoint_s
     return daily, settings
 
 
-def build_daily_features(prices: pd.DataFrame, fits_file: str|Path) -> tuple[pd.DataFrame,dict]:
-    """LPPLS features as of each day; no retrospective UNION or future targets as inputs."""
-    d=prices[['date','price']].copy().sort_values('date').reset_index(drop=True)
-    logp=np.log(d.price)
-    d['ret_1d']=logp.diff()
-    for k in [7,14,30,60]: d[f'momentum_{k}']=logp.diff(k)
-    for k in [7,30,60]: d[f'vol_{k}']=d.ret_1d.rolling(k,min_periods=k).std()
-    for k in [30,90]: d[f'drawdown_{k}']=d.price/d.price.rolling(k,min_periods=k).max()-1
-    fit=pd.read_csv(fits_file)
-    required={'win_end','tc','m','w','B','C','r2','n','ok'}
-    if not required.issubset(fit): raise ValueError(f'Brak kolumn w dopasowaniach: {required-set(fit.columns)}')
-    fit['win_end']=pd.to_datetime(fit.win_end,utc=True).dt.tz_convert(None).dt.normalize()
-    for c in ['tc','m','w','B','C','r2','n']:
-        fit[c]=pd.to_numeric(fit[c],errors='coerce')
-    fit['t_gap']=fit.tc-fit.win_end.map(lambda x:x.toordinal())
-    ok=fit.ok.astype(str).str.lower().isin(['true','1','yes'])
-    fit['accepted']=(ok & fit.m.gt(0)&fit.m.lt(1)&fit.w.between(6,13)&fit.B.lt(0)&
-                     fit.t_gap.gt(0)&fit.t_gap.le(40)&fit.r2.gt(0.90))
-    n_all=fit.groupby('win_end').size().rename('lppls_n_all')
-    n_ok=fit.groupby('win_end').accepted.sum().rename('lppls_n_accepted')
-    agg=fit.loc[fit.accepted].groupby('win_end').agg(
-        lppls_m=('m','median'),lppls_w=('w','median'),lppls_tgap=('t_gap','median'),
-        lppls_r2=('r2','median'),lppls_B=('B','median'),lppls_C=('C','median'),
-        lppls_window_n=('n','median'),lppls_tgap_std=('t_gap','std'))
-    d=d.merge(n_all,left_on='date',right_index=True,how='left',validate='one_to_one')
-    d=d.merge(n_ok,left_on='date',right_index=True,how='left',validate='one_to_one')
-    d=d.merge(agg,left_on='date',right_index=True,how='left',validate='one_to_one')
-    d['lppls_n_all']=d.lppls_n_all.fillna(0).astype(int)
-    d['lppls_n_accepted']=d.lppls_n_accepted.fillna(0).astype(int)
-    d['lppls_ci']=np.divide(d.lppls_n_accepted,d.lppls_n_all,
-                            out=np.zeros(len(d),dtype=float),where=d.lppls_n_all>0)
-    price_cols=['ret_1d']+[f'momentum_{k}' for k in [7,14,30,60]]+[f'vol_{k}' for k in [7,30,60]]+[f'drawdown_{k}' for k in [30,90]]
-    lppls_cols=['lppls_ci','lppls_n_accepted']+list(agg.columns)
-    feat={'Price-only':price_cols,'LPPLS-only':lppls_cols,'Price+LPPLS':price_cols+lppls_cols}
-    return d,feat
+def build_daily_features(prices: pd.DataFrame, fits_file: str | Path) -> tuple[pd.DataFrame,dict]:
+    """Build causal price and LPPLS features with the shared daily aggregator.
+
+    This backwards-compatible adapter removes the duplicate LPPLS acceptance
+    and aggregation logic previously present in multiple notebooks.
+    """
+    from lppls_research import build_lppls_daily_features
+    from lppls_research.quality import normalize_prices
+
+    d = normalize_prices(prices)
+    logp = np.log(d.price)
+    d['ret_1d'] = logp.diff()
+    for k in (7,14,30,60):
+        d[f'momentum_{k}'] = logp.diff(k)
+    for k in (7,30,60):
+        d[f'vol_{k}'] = d.ret_1d.rolling(k,min_periods=k).std()
+    for k in (30,90):
+        d[f'drawdown_{k}'] = d.price/d.price.rolling(k,min_periods=k).max()-1
+    daily = build_lppls_daily_features(pd.read_csv(fits_file),calendar=d.date)
+    d = d.merge(daily,on='date',how='left',validate='one_to_one')
+    lppls_cols = ['lppls_ci','lppls_n_accepted','lppls_m','lppls_w',
+                  'lppls_tgap','lppls_r2','lppls_B','lppls_C',
+                  'lppls_window_n','lppls_tgap_std']
+    price_cols = ['ret_1d'] + [f'momentum_{k}' for k in (7,14,30,60)] + [
+        f'vol_{k}' for k in (7,30,60)] + [f'drawdown_{k}' for k in (30,90)]
+    return d,{'Price-only':price_cols,'LPPLS-only':lppls_cols,
+              'Price+LPPLS':price_cols+lppls_cols}
 
 
 def classification_stats(y,pred,score=None):
