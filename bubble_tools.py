@@ -126,10 +126,12 @@ def monte_carlo_bsadf_reference(prices: pd.DataFrame, min_window=120, endpoint_s
     x=np.log(prices.price.to_numpy(float))
     observed = bsadf_sparsely_sampled(x, min_window, endpoint_step, start_step, max_window)
     ends=observed.end_index.to_numpy(int)
-    rng=np.random.default_rng(seed)
+    # One independent RNG stream per repetition keeps scheduled historical
+    # critical values invariant when the dataset is later extended.
     simulated=np.empty((reps,len(ends)),dtype=float)
     for b in range(reps):
-        rw=np.r_[0.0,np.cumsum(rng.standard_normal(len(x)-1))]
+        rng_b=np.random.default_rng(np.random.SeedSequence([seed, b]))
+        rw=np.r_[0.0,np.cumsum(rng_b.standard_normal(len(x)-1))]
         series=bsadf_sparsely_sampled(rw,min_window,endpoint_step,start_step,max_window,evaluation_ends=ends)
         simulated[b,:]=series.bsadf.to_numpy(float)
     observed['critical_value']=np.nanquantile(simulated, quantile, axis=0)
