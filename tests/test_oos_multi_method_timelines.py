@@ -34,7 +34,7 @@ def test_same_date_and_label_across_all_methods():
 def test_reject_disagreement_in_future_target():
     """A changed target in even one model must abort figure generation."""
     tuned, fixed = _records()
-    tuned.loc[0, "y_true"] = 0
+    tuned.loc[1, "y_true"] = 0
     with pytest.raises(ValueError, match="Inconsistent OOS"):
         aligned_alarms(tuned, fixed)
 
