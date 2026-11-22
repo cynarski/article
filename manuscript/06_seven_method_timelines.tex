@@ -1,0 +1,52 @@
+\subsection{Porównanie czasowego rozkładu alarmów siedmiu metod}
+\label{sec:seven_alarm_timelines}
+
+W celu zbadania rzeczywistego czasu ostrzegania porównano dwie reguły
+statystyczne (LPPLS Confidence Indicator i BSADF-gap) oraz pięć rodzin
+algorytmów uczenia maszynowego: regresję logistyczną, drzewo decyzyjne,
+XGBoost, LightGBM i CatBoost. Wszystkie metody prognozowały spadek ceny
+BTC o co najmniej 10\% w ciągu 60 dni, na \textbf{1401 identycznych
+datach testowych} (2021--2024), z 764 dodatnimi etykietami.
+
+Reguły LPPLS-CI i BSADF pochodzą z osobnej procedury kalibracji
+statystycznej, a pięć modeli ML (każdy w wariancie Price+LPPLS)
+z eksperymentu z chronologicznym strojeniem hiperparametrów.
+Wyniki są zatem porównywalne czasowo, ale \textbf{nie stanowią eksperymentu
+z identycznym budżetem strojenia ani wspólnym ograniczeniem czasu alarmu}.
+Pokazano rzeczywiste wcześniej wybrane decyzje OOS, nie dobierając
+progów ponownie do zbioru testowego.
+
+\begin{table}[htbp]\centering\small
+\caption{Out-of-sample alarm coverage for seven methods evaluated on the same BTC 10\%-decline, 60-day target and identical daily test calendar.}
+\label{tab:seven_method_alarm_shares}
+\begin{tabular}{@{}lrr@{}}\toprule
+Metoda & Dni w alarmie & Time in Alarm (\%) \\ \midrule
+LPPLS Confidence Indicator & 188 & 13,4 \\
+BSADF statistical rule & 442 & 31,5 \\
+Logistic Regression & 1399 & 99,9 \\
+Decision Tree & 1072 & 76,5 \\
+XGBoost & 1297 & 92,6 \\
+LightGBM & 1323 & 94,4 \\
+CatBoost & 1354 & 96,6 \\
+\bottomrule\end{tabular}
+\end{table}
+
+\begin{figure}[htbp]\centering
+\includegraphics[width=\linewidth]{figures/oos_seven_methods_compact.pdf}
+\caption{BTC-USD close, retrospective UNION episodes, and out-of-sample
+warning states of seven methods on identical dates (2021--2024).
+Statistical rules and chronologically tuned ML classifiers follow different
+calibration protocols; the plot is not a matched-budget ranking.}
+\label{fig:seven_method_compact}
+\end{figure}
+
+Zauważalny jest silny kontrast między regułą LPPLS-CI, alarmującą
+przez 13,4\% czasu, regułą BSADF, aktywną przez 31,5\% czasu,
+a większością modeli ML, alarmujących przez 76,5--99,9\% czasu.
+Przy niemal ciągłym alarmowaniu wysoki recall i F1 mogą mieć
+ograniczone znaczenie operacyjne. Różowe obszary UNION są
+retrospektywnym odniesieniem literaturowym, nie etykietą
+przyszłego spadku używaną do oceny przedstawionych alarmów.
+
+Szczegółowe panele z czarną linią ceny i odcinkami alarmów dla
+każdej metody udostępniono w dodatku do manuskryptu.
